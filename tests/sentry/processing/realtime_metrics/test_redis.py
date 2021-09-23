@@ -139,7 +139,7 @@ def test_get_lpq_projects_filled(
 def test_add_project_to_lpq_unset(
     store: RedisRealtimeMetricsStore, redis_cluster: redis._RedisCluster
 ) -> None:
-    assert store.add_project_to_lpq(1)
+    store.add_project_to_lpq(1)
     in_lpq = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert in_lpq == {"1"}
 
@@ -150,7 +150,7 @@ def test_add_project_to_lpq_empty(
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
     redis_cluster.srem("store.symbolicate-event-lpq-selected", 1)
 
-    assert store.add_project_to_lpq(1)
+    store.add_project_to_lpq(1)
     in_lpq = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert in_lpq == {"1"}
 
@@ -160,7 +160,7 @@ def test_add_project_to_lpq_dupe(
 ) -> None:
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
 
-    assert store.add_project_to_lpq(1)
+    store.add_project_to_lpq(1)
     in_lpq = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert in_lpq == {"1"}
 
@@ -170,7 +170,7 @@ def test_add_project_to_lpq_filled(
 ) -> None:
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 11)
 
-    assert store.add_project_to_lpq(1)
+    store.add_project_to_lpq(1)
     in_lpq = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert in_lpq == {"1", "11"}
 
@@ -178,8 +178,7 @@ def test_add_project_to_lpq_filled(
 def test_remove_projects_from_lpq_unset(
     store: RedisRealtimeMetricsStore, redis_cluster: redis._RedisCluster
 ) -> None:
-    removed = store.remove_projects_from_lpq({1})
-    assert removed == set()
+    store.remove_projects_from_lpq({1})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == set()
@@ -191,9 +190,7 @@ def test_remove_projects_from_lpq_empty(
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
     redis_cluster.srem("store.symbolicate-event-lpq-selected", 1)
 
-    removed = store.remove_projects_from_lpq({1})
-    assert removed == set()
-
+    store.remove_projects_from_lpq({1})
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == set()
 
@@ -203,8 +200,7 @@ def test_remove_projects_from_lpq_only_member(
 ) -> None:
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
 
-    removed = store.remove_projects_from_lpq({1})
-    assert removed == {1}
+    store.remove_projects_from_lpq({1})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == set()
@@ -215,8 +211,7 @@ def test_remove_projects_from_lpq_nonmember(
 ) -> None:
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 11)
 
-    removed = store.remove_projects_from_lpq({1})
-    assert removed == set()
+    store.remove_projects_from_lpq({1})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == {"11"}
@@ -228,8 +223,7 @@ def test_remove_projects_from_lpq_subset(
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 11)
 
-    removed = store.remove_projects_from_lpq({1})
-    assert removed == {1}
+    store.remove_projects_from_lpq({1})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == {"11"}
@@ -241,8 +235,7 @@ def test_remove_projects_from_lpq_all_members(
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 11)
 
-    removed = store.remove_projects_from_lpq({1, 11})
-    assert removed == {1, 11}
+    store.remove_projects_from_lpq({1, 11})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == set()
@@ -253,8 +246,7 @@ def test_remove_projects_from_lpq_no_members(
 ) -> None:
     redis_cluster.sadd("store.symbolicate-event-lpq-selected", 1)
 
-    removed = store.remove_projects_from_lpq({})
-    assert removed == set()
+    store.remove_projects_from_lpq({})
 
     remaining = redis_cluster.smembers("store.symbolicate-event-lpq-selected")
     assert remaining == {"1"}
