@@ -71,16 +71,14 @@ class SlackUnlinkTeamView(BaseView):  # type: ignore
         if len(external_teams) == 0:
             logger.error("slack.team.unlink.no_external_teams")
             raise Http404
+        team = external_teams[0].actor.resolve()
 
-        teams = Team.objects.filter(
-            actor__in=[external_team.actor for external_team in external_teams]
-        )
         if request.method != "POST":
             return render_to_response(
                 "sentry/integrations/slack/unlink-team.html",
                 request=request,
                 context={
-                    "team": teams[0],
+                    "team": team,
                     "channel_name": channel_name,
                     "provider": integration.get_provider(),
                 },
@@ -96,10 +94,11 @@ class SlackUnlinkTeamView(BaseView):  # type: ignore
 
         if not Identity.objects.filter(idp=idp, external_id=params["slack_id"]).exists():
             return render_error_page(request, body_text="HTTP 403: User identity does not exist")
+
+        # Someone may have accidentally added multiple teams so unlink them all.
         for external_team in external_teams:
             external_team.delete()
-        for team in teams:
-            NotificationSetting.objects.remove_for_team(team, ExternalProviders.SLACK)
+
         return send_confirmation(
             integration,
             channel_id,
