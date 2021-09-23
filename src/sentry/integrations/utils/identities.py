@@ -10,26 +10,21 @@ from sentry.models import (
     Organization,
     User,
 )
+from sentry.types.integrations import EXTERNAL_PROVIDERS, ExternalProviders
 
 
-def get_identity(
-    user: User, organization_id: int, integration_id: int
+def get_identity_or_404(
+    provider: ExternalProviders, user: User, organization_id: int, integration_id: int
 ) -> Tuple[Organization, Integration, IdentityProvider]:
+    """For endpoints, short-circuit with a 404 if we cannot find everything we need."""
     try:
         organization = Organization.objects.get(id__in=user.get_orgs(), id=organization_id)
-    except Organization.DoesNotExist:
-        raise Http404
-
-    try:
         integration = Integration.objects.get(id=integration_id, organizations=organization)
-    except Integration.DoesNotExist:
+        idp = IdentityProvider.objects.get(
+            external_id=integration.external_id, type=EXTERNAL_PROVIDERS[provider]
+        )
+    except Exception:
         raise Http404
-
-    try:
-        idp = IdentityProvider.objects.get(external_id=integration.external_id, type="slack")
-    except IdentityProvider.DoesNotExist:
-        raise Http404
-
     return organization, integration, idp
 
 
