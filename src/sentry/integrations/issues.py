@@ -367,19 +367,6 @@ class IssueSyncMixin(IssueBasicMixin):
         """
         raise NotImplementedError
 
-    def update_group_status(self, groups, status, activity_type):
-        updated = (
-            Group.objects.filter(id__in=[g.id for g in groups])
-            .exclude(status=status)
-            .update(status=status)
-        )
-        if updated:
-            for group in groups:
-                activity = Activity.objects.create(
-                    project=group.project, group=group, type=activity_type
-                )
-                activity.send_notification()
-
     def should_sync_status_inbound(self) -> bool:
         if not self.should_sync("inbound_status"):
             return False
@@ -404,10 +391,10 @@ class IssueSyncMixin(IssueBasicMixin):
 
         action = self.get_resolve_sync_action(data)
         if action == ResolveSyncAction.RESOLVE:
-            self.update_group_status(
-                affected_groups, GroupStatus.RESOLVED, ActivityType.SET_RESOLVED.value
+            Group.objects.update_group_status(
+                affected_groups, GroupStatus.RESOLVED, ActivityType.SET_RESOLVED
             )
         if action == ResolveSyncAction.UNRESOLVE:
-            self.update_group_status(
-                affected_groups, GroupStatus.UNRESOLVED, ActivityType.SET_UNRESOLVED.value
+            Group.objects.update_group_status(
+                affected_groups, GroupStatus.UNRESOLVED, ActivityType.SET_UNRESOLVED
             )

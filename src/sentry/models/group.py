@@ -295,6 +295,22 @@ class GroupManager(BaseManager):
             project__organization_id__in=integration.organizations.values_list("id", flat=True),
         )
 
+    def update_group_status(
+        self, groups: Sequence["Group"], status: GroupStatus, activity_type: ActivityType
+    ) -> None:
+        """For each groups, update status to `status` and create an Activity."""
+        from sentry.models import Activity
+
+        updated_count = (
+            self.filter(id__in=[g.id for g in groups]).exclude(status=status).update(status=status)
+        )
+        if updated_count:
+            for group in groups:
+                activity = Activity.objects.create(
+                    project=group.project, group=group, type=activity_type.value
+                )
+                activity.send_notification()
+
 
 class Group(Model):
     """
