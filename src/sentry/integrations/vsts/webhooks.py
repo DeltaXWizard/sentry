@@ -15,12 +15,11 @@ from sentry.models import (
     sync_group_assignee_inbound,
 )
 from sentry.models.apitoken import generate_token
+from sentry.utils.email import parse_email
 
 from .client import VstsApiClient
 
 UNSET = object()
-# Pull email from the string: u'lauryn <lauryn@sentry.io>'
-EMAIL_PARSER = re.compile(r"<(.*)>")
 logger = logging.getLogger("sentry.integrations")
 PROVIDER_KEY = "vsts"
 
@@ -190,9 +189,6 @@ class WorkItemWebhook(Endpoint):  # type: ignore
 
             installation.sync_status_inbound(external_issue_key, data)
 
-    def parse_email(self, email: str) -> str:
-        # TODO(mgaeta): This is too brittle and doesn't pass types.
-        return EMAIL_PARSER.search(email).group(1)  # type: ignore
 
     def create_subscription(
         self, instance: Optional[str], identity_data: Mapping[str, Any], oauth_redirect_url: str
