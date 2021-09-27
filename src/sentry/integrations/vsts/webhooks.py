@@ -17,9 +17,6 @@ from sentry.models import (
 from sentry.models.apitoken import generate_token
 from sentry.utils.email import parse_email
 
-from .client import VstsApiClient
-
-UNSET = object()
 logger = logging.getLogger("sentry.integrations")
 PROVIDER_KEY = "vsts"
 
@@ -27,13 +24,6 @@ PROVIDER_KEY = "vsts"
 class WorkItemWebhook(Endpoint):  # type: ignore
     authentication_classes = ()
     permission_classes = ()
-
-    def get_client(self, identity: Identity, oauth_redirect_url: str) -> VstsApiClient:
-        return VstsApiClient(identity, oauth_redirect_url)
-
-    @csrf_exempt  # type: ignore
-    def dispatch(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         data = request.data
