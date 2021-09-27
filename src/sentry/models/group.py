@@ -7,11 +7,11 @@ from datetime import timedelta
 from enum import Enum
 from functools import reduce
 from operator import or_
-from typing import List, Mapping, Optional, Sequence, Set
+from typing import List, Mapping, Optional, Sequence, Set, TYPE_CHECKING
 
 from django.core.cache import cache
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 from django.utils.http import urlencode, urlquote
 from django.utils.translation import ugettext_lazy as _
@@ -33,6 +33,9 @@ from sentry.types.activity import ActivityType
 from sentry.utils.http import absolute_uri
 from sentry.utils.numbers import base32_decode, base32_encode
 from sentry.utils.strings import strip, truncatechars
+
+if TYPE_CHECKING:
+    from sentry.models import Integration
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +224,7 @@ class GroupManager(BaseManager):
         )
 
         groups: List[Group] = list(
-            Group.objects.exclude(
+            self.exclude(
                 status__in=[
                     GroupStatus.PENDING_DELETION,
                     GroupStatus.DELETION_IN_PROGRESS,
@@ -248,10 +251,7 @@ class GroupManager(BaseManager):
             logger.info("discarded.hash", extra={"project_id": project, "description": str(e)})
 
     def from_event_id(self, project, event_id):
-        """
-        Resolves the 32 character event_id string into
-        a Group for which it is found.
-        """
+        """Resolves the 32 character event_id string into a Group for which it is found."""
         group_id = None
 
         event = eventstore.get_event_by_id(project.id, event_id)
@@ -265,27 +265,26 @@ class GroupManager(BaseManager):
             # a Group.
             raise Group.DoesNotExist()
 
-        return Group.objects.get(id=group_id)
+        return self.get(id=group_id)
 
     def filter_by_event_id(self, project_ids, event_id):
-        event_ids = [event_id]
-        conditions = [["group_id", "IS NOT NULL", None]]
-        data = eventstore.get_events(
+        events = eventstore.get_events(
             filter=eventstore.Filter(
-                event_ids=event_ids, project_ids=project_ids, conditions=conditions
+                event_ids=[event_id],
+                project_ids=project_ids,
+                conditions=[["group_id", "IS NOT NULL", None]],
             ),
             limit=max(len(project_ids), 100),
             referrer="Group.filter_by_event_id",
         )
+        return self.filter(id__in={event.group_id for event in events})
 
-        group_ids = {evt.group_id for evt in data}
-
-        return Group.objects.filter(id__in=group_ids)
-
-    def get_groups_by_external_issue(self, integration, external_issue_key):
+    def get_groups_by_external_issue(
+        self, integration: "Integration", external_issue_key: str
+    ) -> QuerySet:
         from sentry.models import ExternalIssue, GroupLink
 
-        return Group.objects.filter(
+        return self.filter(
             id__in=GroupLink.objects.filter(
                 linked_id__in=ExternalIssue.objects.filter(
                     key=external_issue_key,

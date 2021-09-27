@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING, Iterable, Mapping, Optional, Sequence
 
 from django.conf import settings
 from django.db import models
@@ -12,8 +13,11 @@ from sentry.signals import issue_assigned
 from sentry.types.activity import ActivityType
 from sentry.utils import metrics
 
+if TYPE_CHECKING:
+    from sentry.models import Group, Integration, Organization, User
 
-def get_user_project_ids(users):
+
+def get_user_project_ids(users: Iterable["User"]) -> Mapping[int, Iterable[int]]:
     """
     Given a list of users, return a dict where keys are user_ids
     and values are a set of the project_ids the user is a member of
@@ -110,7 +114,7 @@ def sync_group_assignee_inbound(integration, email, external_issue_key, assign=T
     return groups_assigned
 
 
-def sync_group_assignee_outbound(group, user_id, assign=True):
+def sync_group_assignee_outbound(group: "Group", user_id: int, assign: bool = True) -> None:
     from sentry.models import GroupLink
     from sentry.tasks.integrations import sync_assignee_outbound
 
