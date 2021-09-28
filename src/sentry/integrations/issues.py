@@ -1,16 +1,46 @@
+import enum
 import logging
 from collections import defaultdict
-from typing import Any, Mapping, Tuple
+from typing import Any, Mapping
 
 from sentry import features
 from sentry.models import Activity, ExternalIssue, Group, GroupLink, GroupStatus, Organization
 from sentry.models.useroption import UserOption
 from sentry.shared_integrations.exceptions import ApiError, IntegrationError
+from sentry.types.activity import ActivityType
 from sentry.utils.compat import filter
 from sentry.utils.http import absolute_uri
 from sentry.utils.safe import safe_execute
 
 logger = logging.getLogger("sentry.integrations.issues")
+
+
+class ResolveSyncAction(enum.Enum):
+    """
+    When an issue's state changes, we may have to sync the state based on the
+    "done" states we get from the API. This enum encapsulates the three options
+    we have: "resolve", "unresolve", or "do nothing".
+    """
+
+    NOOP = 0
+    RESOLVE = 1
+    UNRESOLVE = 2
+
+    @classmethod
+    def from_resolve_unresolve(
+        cls, should_resolve: bool, should_unresolve: bool
+    ) -> "ResolveSyncAction":
+        if should_resolve and should_unresolve:
+            logger.warning("sync-config-conflict")
+            return ResolveSyncAction.NOOP
+
+        if should_resolve:
+            return ResolveSyncAction.RESOLVE
+
+        if should_unresolve:
+            return ResolveSyncAction.UNRESOLVE
+
+        return ResolveSyncAction.NOOP
 
 
 class IssueBasicMixin:
@@ -325,42 +355,17 @@ class IssueSyncMixin(IssueBasicMixin):
         """
         raise NotImplementedError
 
-    def _get_resolve_unresolve(self, data: Mapping[str, Any]) -> Tuple[bool, bool]:
-        """
-        Because checking the "done" states can rely on an API call, this function
-        should calculate both "resolve" and "unresolve" to save a round trip.
-        """
-        raise NotImplementedError
-
-    def get_resolve_unresolve(self, data: Mapping[str, Any]) -> Tuple[bool, bool]:
+    def get_resolve_sync_action(self, data: Mapping[str, Any]) -> ResolveSyncAction:
         """
         Given webhook data, check whether the status category changed FROM
         "done" to something else, meaning the Sentry issue should be marked as
         unresolved or if the status category changed TO "done" from something
-        else, meaning the sentry issue should be marked as resolved. Log if
-        there is a conflict.
+        else, meaning the sentry issue should be marked as resolved.
+
+        Because checking the "done" states can rely on an API call, this function
+        should calculate both "resolve" and "unresolve" to save a round trip.
         """
-        should_resolve, should_unresolve = self._get_resolve_unresolve(data)
-        if should_resolve and should_unresolve:
-            logger.warning(
-                "sync-config-conflict",
-                extra={
-                    "integration_id": self.model.id,
-                    "provider": self.model.get_provider(),
-                },
-            )
-            return False, False
-        return should_resolve, should_unresolve
-
-    def should_unresolve(self, data: Mapping[str, Any]) -> bool:
-        """@deprecated"""
-        _, should_unresolve = self.get_resolve_unresolve(data)
-        return should_unresolve
-
-    def should_resolve(self, data: Mapping[str, Any]) -> bool:
-        """@deprecated"""
-        should_resolve, _ = self.get_resolve_unresolve(data)
-        return should_resolve
+        raise NotImplementedError
 
     def update_group_status(self, groups, status, activity_type):
         updated = (
@@ -375,14 +380,17 @@ class IssueSyncMixin(IssueBasicMixin):
                 )
                 activity.send_notification()
 
-    def sync_status_inbound(self, issue_key, data):
+    def should_sync_status_inbound(self) -> bool:
         if not self.should_sync("inbound_status"):
-            return
+            return False
 
         organization = Organization.objects.get(id=self.organization_id)
         has_issue_sync = features.has("organizations:integrations-issue-sync", organization)
 
-        if not has_issue_sync:
+        return has_issue_sync
+
+    def sync_status_inbound(self, issue_key, data):
+        if not self.should_sync_status_inbound():
             return
 
         affected_groups = list(
@@ -391,36 +399,15 @@ class IssueSyncMixin(IssueBasicMixin):
             .select_related("project")
         )
 
-        groups_to_resolve = []
-        groups_to_unresolve = []
+        if not affected_groups:
+            return
 
-        should_resolve = self.should_resolve(data)
-        should_unresolve = self.should_unresolve(data)
-
-        for group in affected_groups:
-
-            # this probably shouldn't be possible unless there
-            # is a bug in one of those methods
-            if should_resolve is True and should_unresolve is True:
-                logger.warning(
-                    "sync-config-conflict",
-                    extra={
-                        "organization_id": group.project.organization_id,
-                        "integration_id": self.model.id,
-                        "provider": self.model.get_provider(),
-                    },
-                )
-                continue
-
-            if should_unresolve:
-                groups_to_unresolve.append(group)
-            elif should_resolve:
-                groups_to_resolve.append(group)
-
-        if groups_to_resolve:
-            self.update_group_status(groups_to_resolve, GroupStatus.RESOLVED, Activity.SET_RESOLVED)
-
-        if groups_to_unresolve:
+        action = self.get_resolve_sync_action(data)
+        if action == ResolveSyncAction.RESOLVE:
             self.update_group_status(
-                groups_to_unresolve, GroupStatus.UNRESOLVED, Activity.SET_UNRESOLVED
+                affected_groups, GroupStatus.RESOLVED, ActivityType.SET_RESOLVED.value
+            )
+        if action == ResolveSyncAction.UNRESOLVE:
+            self.update_group_status(
+                affected_groups, GroupStatus.UNRESOLVED, ActivityType.SET_UNRESOLVED.value
             )
