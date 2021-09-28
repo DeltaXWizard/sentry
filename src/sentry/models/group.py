@@ -7,7 +7,7 @@ from datetime import timedelta
 from enum import Enum
 from functools import reduce
 from operator import or_
-from typing import List, Mapping, Optional, Sequence, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Mapping, Optional, Sequence, Set
 
 from django.core.cache import cache
 from django.db import models
