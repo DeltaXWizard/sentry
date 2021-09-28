@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import Any, Mapping
 
 from sentry import features
-from sentry.models import Activity, ExternalIssue, Group, GroupLink, GroupStatus, Organization
+from sentry.models import ExternalIssue, Group, GroupLink, GroupStatus, Organization
 from sentry.models.useroption import UserOption
 from sentry.shared_integrations.exceptions import ApiError, IntegrationError
 from sentry.types.activity import ActivityType
@@ -367,9 +367,9 @@ class IssueSyncMixin(IssueBasicMixin):
 
         return has_issue_sync
 
-    def sync_status_inbound(self, issue_key, data):
+    def sync_status_inbound(self, issue_key: str, data: Mapping[str, Any]) -> None:
         if not self.should_sync_status_inbound():
-            return
+            return None
 
         affected_groups = list(
             Group.objects.get_groups_by_external_issue(self.model, issue_key)
