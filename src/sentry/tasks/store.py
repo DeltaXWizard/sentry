@@ -94,8 +94,8 @@ def _do_preprocess_event(cache_key, data, start_time, event_id, process_task, pr
     from sentry.lang.native.processing import should_process_with_symbolicator
     from sentry.tasks.symbolication import (
         should_demote_symbolication,
-        submit_symbolicate_low_priority,
         submit_symbolicate,
+        submit_symbolicate_low_priority,
     )
 
     if cache_key and data is None:
