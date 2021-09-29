@@ -158,7 +158,7 @@ def test_get_lpq_projects_filled(
     in_lpq = store.get_lpq_projects()
     assert in_lpq == {1}
 
-
+    
 #
 # add_project_to_lpq()
 #
