@@ -38,7 +38,8 @@ class JiraServerWebhookEndpointTest(APITestCase):
         org_integration.update(default_auth_id=None, config={"sync_status_reverse": True})
 
         with self.tasks():
-            self.get_error_response(self.jwt_token, **EXAMPLE_PAYLOAD, status_code=400)
+            # The API calls to Jira are now async so this request will succeed.
+            self.get_success_response(self.jwt_token, **EXAMPLE_PAYLOAD)
 
     def test_post_token_missing_id(self):
         integration = self.integration
@@ -100,4 +101,5 @@ class JiraServerWebhookEndpointTest(APITestCase):
         installation.update_organization_config({"sync_status_reverse": True})
 
         with self.tasks():
-            self.get_error_response(self.jwt_token, **EXAMPLE_PAYLOAD, status_code=400)
+            # The API calls to Jira are now async so this request will succeed.
+            self.get_success_response(self.jwt_token, **EXAMPLE_PAYLOAD)
