@@ -5,9 +5,7 @@ from sentry.api.bases.project import ProjectEndpoint
 from sentry.api.serializers import serialize
 from sentry.api.serializers.models.sentry_app_component import SentryAppAlertRuleActionSerializer
 from sentry.constants import MIGRATED_CONDITIONS, TICKET_ACTIONS
-from sentry.coreapi import APIError
-from sentry.mediators import sentry_app_components
-from sentry.models import SentryAppComponent, SentryAppInstallation
+from sentry.models import SentryAppInstallation
 from sentry.rules import rules
 
 
@@ -71,26 +69,19 @@ class ProjectRulesConfigurationEndpoint(ProjectEndpoint):
             elif rule_type.startswith("action/"):
                 action_list.append(context)
 
-        for install in SentryAppInstallation.get_installed_for_org(project.organization_id):
-            _components = SentryAppComponent.objects.filter(
-                sentry_app_id=install.sentry_app_id, type="alert-rule-action"
-            )
-            for component in _components:
-                try:
-                    sentry_app_components.Preparer.run(
-                        component=component, install=install, project=project
+        for install in SentryAppInstallation.get_installed_for_org(project.organization_id).filter(
+            sentry_app__is_alertable=True
+        ):
+            component = install.prepare_sentry_app_components("alert-rule-action", project)
+            if component:
+                action_list.append(
+                    serialize(
+                        component,
+                        request.user,
+                        SentryAppAlertRuleActionSerializer(),
+                        install=install,
                     )
-                    action_list.append(
-                        serialize(
-                            component,
-                            request.user,
-                            SentryAppAlertRuleActionSerializer(),
-                            install=install,
-                        )
-                    )
-
-                except APIError:
-                    continue
+                )
 
         context = {"actions": action_list, "conditions": condition_list, "filters": filter_list}
 
